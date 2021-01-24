@@ -1,0 +1,12 @@
+{{range $key, $value := .}}
+upstream {{$key}} {
+  {{if $value.LocationList}}
+    {{range  $value.LocationList}}
+    server {{.PrivateIPAddress}}:{{.Port}};
+    {{ end }}
+  {{else}}
+    # we use a placeholder for when there are no available servers
+    server 127.0.0.1:80 down;
+  {{end}}
+}
+{{end}}
