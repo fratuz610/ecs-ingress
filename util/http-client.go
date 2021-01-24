@@ -8,14 +8,14 @@ import (
 )
 
 // HTTPDownloadFile downloads a file via HTTP with an optional header specified
-func HTTPDownloadFile(url string, header string) (string, error) {
+func HTTPDownloadFile(url string, header string) ([]byte, error) {
 
 	client := &http.Client{}
 
 	req, err := http.NewRequest("GET", url, nil)
 
 	if err != nil {
-		return "", fmt.Errorf("Invalid URL: %v", err)
+		return nil, fmt.Errorf("Invalid URL: %v", err)
 	}
 
 	if header != "" {
@@ -23,7 +23,7 @@ func HTTPDownloadFile(url string, header string) (string, error) {
 		headerList, err := ParseHeader(header)
 
 		if err != nil {
-			return "", fmt.Errorf("Invalid header %v", err)
+			return nil, fmt.Errorf("Invalid header %v", err)
 		}
 
 		req.Header.Add(headerList[0], headerList[1])
@@ -32,22 +32,20 @@ func HTTPDownloadFile(url string, header string) (string, error) {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return "", fmt.Errorf("Http Call failed %v", err)
+		return nil, fmt.Errorf("Http Call failed %v", err)
 	}
 
 	buf, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		return "", fmt.Errorf("Http Call failed: %v", err)
+		return nil, fmt.Errorf("Http Call failed: %v", err)
 	}
-
-	body := string(buf)
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Http Call failed with code %v - body: '%v'", resp.StatusCode, body[:100])
+		return nil, fmt.Errorf("Http Call failed with code %v", resp.StatusCode)
 	}
 
-	return body, nil
+	return buf, nil
 }
 
 // ParseHeader exported

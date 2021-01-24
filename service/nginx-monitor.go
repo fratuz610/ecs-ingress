@@ -3,6 +3,7 @@ package service
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 
 	"bitbucket.org/nnnco/rev-proxy/shared"
@@ -31,10 +32,12 @@ func (n *NginxMonitor) Start(wg *sync.WaitGroup) {
 
 	// log.Info().Str("errorMsg", response.ErrorMsg).Int("numReadings", len(response.ReadingList)).Float32("durationMs", response.DurationMs).Msg("")
 
-	// we start nginx
-	log.Info().Msg("Starting nginx executable...")
+	mainConfPath := filepath.Join(n.cfg.Nginx.ConfigFolder, n.cfg.Nginx.MainConfigFile)
 
-	mainCmd := exec.Command("nginx", "-c", "/app/nginx.conf", "-g", "daemon off;")
+	// we start nginx
+	log.Info().Msgf("Starting nginx executable with config '%v'", mainConfPath)
+
+	mainCmd := exec.Command("nginx", "-c", mainConfPath, "-g", "daemon off;")
 
 	// we redirect stdout and err to ourself
 	mainCmd.Stdout = os.Stdout

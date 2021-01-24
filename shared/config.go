@@ -17,11 +17,12 @@ type configAWS struct {
 }
 
 type configNginx struct {
+	ConfigFolder          string
 	UpstreamsTemplateFile string
 	UpstreamsConfigFile   string
 	MainConfigFile        string
-	ConfigFileURL         string
-	ConfigFileURLHeader   string
+	ConfigBundleURL       string
+	ConfigBundleURLHeader string
 }
 
 // NewConfig is used to generate a configuration instance which will be passed around the codebase
@@ -34,18 +35,20 @@ func NewConfig() (*Config, error) {
 			Region:      "ap-southeast-2",
 		},
 		Nginx: configNginx{
-			UpstreamsTemplateFile: "/app/upstreams.conf.tmpl",
-			UpstreamsConfigFile:   "/app/upstreams.conf",
-			MainConfigFile:        "/app/nginx.conf",
-			ConfigFileURL:         "https://fratuz610.s3.amazonaws.com/ecs-ingress/nginx.conf",
-			ConfigFileURLHeader:   "",
+			ConfigFolder:          "/app/nginx",
+			UpstreamsTemplateFile: "upstreams.conf.tmpl",
+			UpstreamsConfigFile:   "upstreams.conf",
+			MainConfigFile:        "nginx.conf",
+			ConfigBundleURL:       "https://github.com/fratuz610/ecs-ingress/blob/master/bundle/nginx.zip?raw=true",
+			ConfigBundleURLHeader: "",
 		},
 	}
 
 	viper.BindEnv("AWS.Clustername", "AWS_CLUSTER_NAME")
 	viper.BindEnv("AWS.Region", "AWS_REGION")
-	viper.BindEnv("Nginx.ConfigFileURL", "NGINX_CONFIG_FILE_URL")
-	viper.BindEnv("Nginx.ConfigFileURLHeader", "NGINX_CONFIG_FILE_URL_HEADER")
+	viper.BindEnv("Nginx.MainConfigFile", "NGINX_CONFIG_FILE_NAME")
+	viper.BindEnv("Nginx.ConfigBundleURL", "NGINX_CONFIG_BUNDLE_URL")
+	viper.BindEnv("Nginx.ConfigBundleURLHeader", "NGINX_CONFIG_BUNDLE_URL_HEADER")
 
 	if err := viper.Unmarshal(&config); err != nil {
 		log.Panic().Msgf("Error unmarshaling config, %s", err)
@@ -54,8 +57,10 @@ func NewConfig() (*Config, error) {
 	log.Info().
 		Str("AWS Clustername", config.AWS.ClusterName).
 		Str("AWS Region", config.AWS.Region).
-		Str("NGINX ConfigFileURL", config.Nginx.ConfigFileURL).
-		Str("NGINX ConfigFileURLHeader", config.Nginx.ConfigFileURLHeader).
+		Str("NGINX ConfigFolder", config.Nginx.ConfigFolder).
+		Str("NGINX MainConfigFile", config.Nginx.MainConfigFile).
+		Str("NGINX ConfigBundleURL", config.Nginx.ConfigBundleURL).
+		Str("NGINX ConfigBundleURLHeader", config.Nginx.ConfigBundleURLHeader).
 		Msgf("Config loaded successfully")
 
 	return &config, nil

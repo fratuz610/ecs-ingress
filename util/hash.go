@@ -14,6 +14,14 @@ func HashBuffer(src *bytes.Buffer) string {
 	return fmt.Sprintf("%x", bs)
 }
 
+// HashBytes exported
+func HashBytes(src []byte) string {
+	h := sha1.New()
+	h.Write(src)
+	bs := h.Sum(nil)
+	return fmt.Sprintf("%x", bs)
+}
+
 // HashString exported
 func HashString(src string) string {
 	h := sha1.New()

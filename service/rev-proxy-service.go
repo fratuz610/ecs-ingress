@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"path/filepath"
 	"time"
 
 	"bitbucket.org/nnnco/rev-proxy/shared"
@@ -59,33 +60,36 @@ func (r *RevProxyService) QueryAndUpdate(verbose bool) error {
 		return fmt.Errorf("GetServicesAndPorts failed: %v", err.Error())
 	}
 
+	upstreamsTemplatePath := filepath.Join(r.cfg.Nginx.ConfigFolder, r.cfg.Nginx.UpstreamsTemplateFile)
+	upstreamsConfigPath := filepath.Join(r.cfg.Nginx.ConfigFolder, r.cfg.Nginx.UpstreamsConfigFile)
+
 	if verbose {
-		log.Info().Msgf("Reading template %v", r.cfg.Nginx.UpstreamsTemplateFile)
+		log.Info().Msgf("Reading template %v", upstreamsTemplatePath)
 	}
 
-	tmpl, err := template.ParseFiles(r.cfg.Nginx.UpstreamsTemplateFile)
+	tmpl, err := template.ParseFiles(upstreamsTemplatePath)
 
 	if err != nil {
 		return fmt.Errorf("Template parsing failed: %v", err.Error())
 	}
 
-	buffer := new(bytes.Buffer)
-	tmpl.Execute(buffer, descrMap)
+	templateBuffer := new(bytes.Buffer)
+	tmpl.Execute(templateBuffer, descrMap)
 
-	currentUpstreamHash := util.HashBuffer(buffer)
+	currentUpstreamHash := util.HashBuffer(templateBuffer)
 
 	// we download the nginx config file
-	nginxConf, err := util.HTTPDownloadFile(r.cfg.Nginx.ConfigFileURL, r.cfg.Nginx.ConfigFileURLHeader)
+	nginxConfBundleBytes, err := util.HTTPDownloadFile(r.cfg.Nginx.ConfigBundleURL, r.cfg.Nginx.ConfigBundleURLHeader)
 
 	if err != nil {
-		return fmt.Errorf("Unable to download NGINX config: %v", err.Error())
+		return fmt.Errorf("Unable to download NGINX config bundle: %v", err.Error())
 	}
 
 	if verbose {
-		log.Info().Msgf("Nginx config downloaded: %v bytes", len(nginxConf))
+		log.Info().Msgf("Nginx config bundle downloaded: %v bytes", len(nginxConfBundleBytes))
 	}
 
-	currentNginxHash := util.HashString(nginxConf)
+	currentNginxHash := util.HashBytes(nginxConfBundleBytes)
 	currentHash := fmt.Sprintf("%v-%v", currentUpstreamHash, currentNginxHash)
 
 	// nothing has changed
@@ -96,31 +100,47 @@ func (r *RevProxyService) QueryAndUpdate(verbose bool) error {
 	// we store a reference
 	r.latestHash = currentHash
 
-	log.Info().Msgf("Change detected %v. Nginx file size: %v bytes", r.latestHash, len(nginxConf))
+	log.Info().Msgf("Change detected %v. Nginx file size: %v bytes", r.latestHash, len(nginxConfBundleBytes))
 
 	// we update the upstreams file
-	err = ioutil.WriteFile(r.cfg.Nginx.UpstreamsConfigFile, buffer.Bytes(), 0644)
+	err = ioutil.WriteFile(upstreamsConfigPath, templateBuffer.Bytes(), 0644)
 
 	if err != nil {
-		return fmt.Errorf("Nginx upstream file update failed: %v", err.Error())
+		return fmt.Errorf("Nginx upstream file update failed: %v", err)
 	}
 
-	// we update the main config file
-	err = ioutil.WriteFile(r.cfg.Nginx.MainConfigFile, []byte(nginxConf), 0644)
+	// we unzip the main config bundle into the config folder
+	fileList, err := util.UnzipFileFromMemory(nginxConfBundleBytes, r.cfg.Nginx.ConfigFolder)
 
 	if err != nil {
-		return fmt.Errorf("Nginx main config file update failed: %v", err.Error())
+		return fmt.Errorf("Unable to extract bundle: %v", err)
+	}
+
+	log.Info().Msgf("%v files extracted.", len(fileList))
+
+	if len(fileList) == 0 {
+		return fmt.Errorf("Bundle contained NO files")
+	}
+
+	for _, filePath := range fileList {
+		log.Info().Msgf("Extracted file: '%v'", filePath)
+	}
+
+	// we look for a main config file there
+	mainConfigFile := filepath.Join(r.cfg.Nginx.ConfigFolder, r.cfg.Nginx.MainConfigFile)
+
+	if !util.FileExists(mainConfigFile) {
+		return fmt.Errorf("Nginx config file NOT found under '%v'", mainConfigFile)
 	}
 
 	// we test the new configuration first
-
 	output, err := r.nginxMonitor.TestConfig()
 
 	if err != nil {
 		return fmt.Errorf("Error testing NGINX configuration: %v - Unable to proceed", output)
 	}
 
-	log.Info().Msg("NGINX configuration test SUCCESS")
+	log.Info().Msg("NGINX configuration test SUCCESS. Sending reload message")
 
 	// we send a reload
 	r.nginxMonitor.Reload()
