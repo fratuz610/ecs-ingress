@@ -37,7 +37,7 @@ func NewConfig() (*Config, error) {
 			UpstreamsTemplateFile: "/app/upstreams.conf.tmpl",
 			UpstreamsConfigFile:   "/app/upstreams.conf",
 			MainConfigFile:        "/app/nginx.conf",
-			ConfigFileURL:         "https://nnnco-file-upload.s3-ap-southeast-2.amazonaws.com/rev-proxy/nginx.conf",
+			ConfigFileURL:         "https://fratuz610.s3.amazonaws.com/ecs-ingress/nginx.conf",
 			ConfigFileURLHeader:   "",
 		},
 	}
