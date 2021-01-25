@@ -18,16 +18,18 @@ type RevProxyService struct {
 	cfg          *shared.Config
 	ecsService   *EcsService
 	nginxMonitor *NginxMonitor
+	s3Client     *util.S3Client
 	latestHash   string
 }
 
 // NewRevProxyService Creates a new rev proxy service
-func NewRevProxyService(cfg *shared.Config, ecsService *EcsService, nginxMonitor *NginxMonitor) *RevProxyService {
+func NewRevProxyService(cfg *shared.Config, ecsService *EcsService, nginxMonitor *NginxMonitor, s3Client *util.S3Client) *RevProxyService {
 
 	ret := &RevProxyService{
 		cfg:          cfg,
 		ecsService:   ecsService,
 		nginxMonitor: nginxMonitor,
+		s3Client:     s3Client,
 	}
 
 	return ret
@@ -60,6 +62,10 @@ func (r *RevProxyService) QueryAndUpdate(verbose bool) error {
 		return fmt.Errorf("GetServicesAndPorts failed: %v", err.Error())
 	}
 
+	if verbose {
+		log.Info().Msgf("GetServicesAndPorts SUCCEEDED: %v services found", len(descrMap))
+	}
+
 	upstreamsTemplatePath := filepath.Join(r.cfg.Nginx.ConfigFolder, r.cfg.Nginx.UpstreamsTemplateFile)
 	upstreamsConfigPath := filepath.Join(r.cfg.Nginx.ConfigFolder, r.cfg.Nginx.UpstreamsConfigFile)
 
@@ -79,7 +85,7 @@ func (r *RevProxyService) QueryAndUpdate(verbose bool) error {
 	currentUpstreamHash := util.HashBuffer(templateBuffer)
 
 	// we download the nginx config file
-	nginxConfBundleBytes, err := util.HTTPDownloadFile(r.cfg.Nginx.ConfigBundleURL, r.cfg.Nginx.ConfigBundleURLHeader)
+	nginxConfBundleBytes, err := r.s3Client.DownloadFileInMemory(r.cfg.Nginx.ConfigBundleS3Bucket, r.cfg.Nginx.ConfigBundleS3Key)
 
 	if err != nil {
 		return fmt.Errorf("Unable to download NGINX config bundle: %v", err.Error())

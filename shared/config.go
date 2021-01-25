@@ -21,8 +21,8 @@ type configNginx struct {
 	UpstreamsTemplateFile string
 	UpstreamsConfigFile   string
 	MainConfigFile        string
-	ConfigBundleURL       string
-	ConfigBundleURLHeader string
+	ConfigBundleS3Bucket  string
+	ConfigBundleS3Key     string
 }
 
 // NewConfig is used to generate a configuration instance which will be passed around the codebase
@@ -39,16 +39,16 @@ func NewConfig() (*Config, error) {
 			UpstreamsTemplateFile: "upstreams.conf.tmpl",
 			UpstreamsConfigFile:   "upstreams.conf",
 			MainConfigFile:        "nginx.conf",
-			ConfigBundleURL:       "https://github.com/fratuz610/ecs-ingress/blob/master/bundle/nginx.zip?raw=true",
-			ConfigBundleURLHeader: "",
+			ConfigBundleS3Bucket:  "",
+			ConfigBundleS3Key:     "",
 		},
 	}
 
 	viper.BindEnv("AWS.Clustername", "AWS_CLUSTER_NAME")
 	viper.BindEnv("AWS.Region", "AWS_REGION")
 	viper.BindEnv("Nginx.MainConfigFile", "NGINX_CONFIG_FILE_NAME")
-	viper.BindEnv("Nginx.ConfigBundleURL", "NGINX_CONFIG_BUNDLE_URL")
-	viper.BindEnv("Nginx.ConfigBundleURLHeader", "NGINX_CONFIG_BUNDLE_URL_HEADER")
+	viper.BindEnv("Nginx.ConfigBundleS3Bucket", "NGINX_CONFIG_BUNDLE_S3_BUCKET")
+	viper.BindEnv("Nginx.ConfigBundleS3Key", "NGINX_CONFIG_BUNDLE_S3_KEY")
 
 	if err := viper.Unmarshal(&config); err != nil {
 		log.Panic().Msgf("Error unmarshaling config, %s", err)
@@ -59,8 +59,8 @@ func NewConfig() (*Config, error) {
 		Str("AWS Region", config.AWS.Region).
 		Str("NGINX ConfigFolder", config.Nginx.ConfigFolder).
 		Str("NGINX MainConfigFile", config.Nginx.MainConfigFile).
-		Str("NGINX ConfigBundleURL", config.Nginx.ConfigBundleURL).
-		Str("NGINX ConfigBundleURLHeader", config.Nginx.ConfigBundleURLHeader).
+		Str("NGINX ConfigBundleS3Bucket", config.Nginx.ConfigBundleS3Bucket).
+		Str("NGINX ConfigBundleS3Key", config.Nginx.ConfigBundleS3Key).
 		Msgf("Config loaded successfully")
 
 	return &config, nil

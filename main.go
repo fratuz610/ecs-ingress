@@ -6,6 +6,7 @@ import (
 
 	"bitbucket.org/nnnco/rev-proxy/service"
 	"bitbucket.org/nnnco/rev-proxy/shared"
+	"bitbucket.org/nnnco/rev-proxy/util"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -31,7 +32,9 @@ func main() {
 	ecsService := service.NewEcsService(config)
 
 	nginxMonitor := service.NewNginxMonitor(config)
-	revProxyService := service.NewRevProxyService(config, ecsService, nginxMonitor)
+	s3Client := util.NewS3Client(config)
+
+	revProxyService := service.NewRevProxyService(config, ecsService, nginxMonitor, s3Client)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
