@@ -111,6 +111,10 @@ func (r *RevProxyService) QueryAndUpdate(verbose bool) error {
 	// we update the upstreams file
 	err = ioutil.WriteFile(upstreamsConfigPath, templateBuffer.Bytes(), 0644)
 
+	if verbose {
+		log.Info().Msgf("Upstreams config: %v", string(templateBuffer.Bytes()))
+	}
+
 	if err != nil {
 		return fmt.Errorf("Nginx upstream file update failed: %v", err)
 	}
