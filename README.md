@@ -9,18 +9,14 @@ Available on Docker Hub: [fratuz610/ecs-ingress](https://hub.docker.com/r/fratuz
 
 [Amazon ECS](https://aws.amazon.com/ecs/) is the cheaper and simpler proprietary alternative to K8s.
 
-Using ECS invariably requires using ELBs/ALBs/NLBs to provide ingress into the ECS Services.
-
-If you have ever been frustrated by the limitedness of the Amazon provided load balancing solutions this project is for you.
-
-By leveraging the battle proven flexibility of NGINX it allows to deploy a reverse proxy solution that supports HTTP/s, TCP and UDP load balancing across any ECS Service.
+By leveraging the battle proven flexibility of NGINX, ECS Ingress lets you deploy a **sophisticated reverse proxy solution that supports HTTP/s, TCP and UDP load balancing with URL rewriting across any ECS Service** without paying the cost and wrestling with the limitedness of the Amazon provided load balancing solutions (ELBs/ALBs/NLBs).
 
 ## How does it work
 
-ECS Ingress is a small golang executable loosly modelled after [nginx-ingress from k8s](https://kubernetes.github.io/ingress-nginx/) but designed to be significantly simpler.
+ECS Ingress is a small golang executable loosly modelled after [nginx-ingress from k8s](https://kubernetes.github.io/ingress-nginx/) but significantly simpler.
 
-* It works by launching and managing a vanilla NGINX instance with a custom specified NGINX configuration bundle stored on S3.
-* The NGINX configuration must reference a dynamically modified upstreams file `/app/nginx/upstreams.conf` where one upstream is created per [ECS Service](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html).
+* It works by launching and managing a vanilla NGINX instance with a custom specified NGINX configuration bundle stored on S3 and downloaded locally.
+* The NGINX configuration must reference a dynamically modified upstreams file `/app/nginx/upstreams.conf` dynamically kept in sync with the ECS cluster and where one upstream is created per [ECS Service](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html).
 * It automatically sends config reloads to NGINX once the S3 config bundle OR the ECS configuration changes - because of new deployments, failovers or nginx config changes.
 * It plays nicely with [AWS CodeDeploy](https://docs.aws.amazon.com/codedeploy/latest/userguide/welcome.html) so that the nginx configuration to be version controlled and automatically zipped to S3 upon change.
 
