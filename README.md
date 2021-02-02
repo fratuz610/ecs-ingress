@@ -16,17 +16,16 @@ By leveraging the battle proven flexibility of NGINX, ECS Ingress lets you deplo
 ECS Ingress is a small golang executable loosly modelled after [nginx-ingress from k8s](https://kubernetes.github.io/ingress-nginx/) but significantly simpler.
 
 * It works by launching and managing a vanilla NGINX instance with a custom specified NGINX configuration bundle stored on S3 and downloaded locally.
-* The NGINX configuration must reference a dynamically modified upstreams file `/app/nginx/upstreams.conf` dynamically kept in sync with the ECS cluster and where one upstream is created per [ECS Service](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html).
-* It automatically sends config reloads to NGINX once the S3 config bundle OR the ECS configuration changes - because of new deployments, failovers or nginx config changes.
-* It plays nicely with [AWS CodeDeploy](https://docs.aws.amazon.com/codedeploy/latest/userguide/welcome.html) so that the nginx configuration to be version controlled and automatically zipped to S3 upon change.
+* The NGINX configuration in turns references a dynamically modified upstreams file `/app/nginx/upstreams.conf` continously kept in sync with the ECS cluster tasks and services.
+* It automatically sends config reloads to NGINX every time the S3 config bundle OR the ECS configuration changes - because of new deployments, failovers or nginx config changes.
+* It plays nicely with [AWS CodeDeploy](https://docs.aws.amazon.com/codedeploy/latest/userguide/welcome.html) so that the nginx configuration to be version controlled and automatically zipped to S3 upon new commits.
 
 ## Notes
 
-* A valid NGINX configuration is required for the container to start properly. Subsequent configuration changes are accepted only if the new configuration passes the nginx config test.
-* AWS API calls are authenticated using the common 
-* Only `RUNNING` tasks are dynamically injected inside the upstreams file.
-* If a ECS service has no tasks running - because of failover or errors - a placeholder backend endpoint marked as DOWN is set to prevent missing reference errors in the main configuration file.
-* ECS Ingress combines the NGINX logs and its internal ones in 1 stdout/stderr stream.
+* A valid NGINX configuration is required for the container **to start properly**. Subsequent configuration changes are accepted only if the new configuration passes the nginx config test without service disruptions in case of errors.
+* AWS API calls are authenticated using ECS Role or AWS IAM credentials. See below.
+* Only `RUNNING` tasks are dynamically injected inside the upstreams file. If a ECS service has no tasks running - because of failover or errors - a placeholder backend endpoint marked as DOWN is set to prevent missing reference errors in the main configuration file.
+* ECS Ingress combines the NGINX logs and its internal ones in 1 stdout/stderr stream for easy ingestion into Cloudwatch Logs.
 * ECS and Nginx config changes are polled **every 10 seconds**. Currently API requests against AWS resources are unmetered and **free**. S3 file requests are billed at the [current S3 GET request pricing](https://aws.amazon.com/s3/pricing/).
 
 ## Deployment
