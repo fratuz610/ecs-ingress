@@ -5,6 +5,16 @@ It's designed to run as a deamon on the ECS cluster and provide reverse proxying
 
 Available on Docker Hub: [fratuz610/ecs-ingress](https://hub.docker.com/r/fratuz610/ecs-ingress)
 
+## Rationale
+
+[Amazon ECS](https://aws.amazon.com/ecs/) is the cheaper and simpler proprietary alternative to K8s.
+
+Using ECS invariably requires using ELBs/ALBs/NLBs to provide ingress into the ECS Services.
+
+If you have ever been frustrated by the limitedness of the Amazon provided load balancing solutions this project is for you.
+
+By leveraging the battle proven flexibility of NGINX it allows to deploy a reverse proxy solution that supports HTTP/s, TCP and UDP load balancing across any ECS Service.
+
 ## How does it work
 
 ECS Ingress is a small golang executable loosly modelled after [nginx-ingress from k8s](https://kubernetes.github.io/ingress-nginx/) but designed to be significantly simpler.
@@ -34,12 +44,12 @@ ECS Ingress is a small golang executable loosly modelled after [nginx-ingress fr
 | `AWS_CLUSTER_NAME`  | `default` | the name of the ECS Cluster to reference |
 | `AWS_REGION`  | `ap-southeast-2` | the AWS Region id |
 | `NGINX_CONFIG_FILE_NAME` | `nginx.conf` | the nginx config file to reference in the S3 bundle |
-| `NGINX_CONFIG_BUNDLE_S3_BUCKET` |  | the S3 bucket for the config bundle |
-| `NGINX_CONFIG_BUNDLE_S3_KEY` |  | the S3 key for the config bundle |
-| `AWS_ACCESS_KEY_ID`| | the AWS Access Key to access the AWS Services. Leave blank if using ECS Roles. |
-| `AWS_SECRET_ACCESS_KEY` | | the AWS Secret Access Key to access the AWS Services. Leave blank if using ECS Roles. |
+| `NGINX_CONFIG_BUNDLE_S3_BUCKET` |  | the S3 bucket for the config bundle. |
+| `NGINX_CONFIG_BUNDLE_S3_KEY` |  | the S3 key for the config bundle.<br/>Must be a ZIP file containing at least the `NGINX_CONFIG_FILE_NAME` file.<br/>It's unzipped in the `/app/nginx/` folder |
+| `AWS_ACCESS_KEY_ID`| | the AWS Access Key to access the AWS Services.<br/>Leave blank if using ECS Roles. |
+| `AWS_SECRET_ACCESS_KEY` | | the AWS Secret Access Key to access the AWS Services.<br/>Leave blank if using ECS Roles. |
 
-## Example Nginx config bundle
+## Example Nginx config file with HTTP load balancing
 
 ```
 user nobody;
@@ -64,33 +74,103 @@ http {
 
   server {
 
-    server_name www.example.com;
-    
-    location / {
-      return 403;
-    }
-
-    location /apis {
-      # api-prod should be defined inside /app/nginx/upstreams.conf and is dynamically updated
-      proxy_pass http://api-prod;
-    }
-
-  } 
-  
-  server {
-
     server_name app.example.com;
     
     location / {
+      # app-ui-prod should be the name of the ECS service
       proxy_pass http://app-ui-prod;
     }
 
     location /v2/api {
+      # app-api-prod should be the name of the ECS service
       proxy_pass http://app-api-prod;
     }
 
   } 
   
+}
+```
+
+## Example Nginx config file with HTTPS support
+
+```
+user nobody;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+  worker_connections 768;
+}
+
+http {
+  sendfile on;
+  tcp_nopush on;
+  tcp_nodelay on;
+  keepalive_timeout 65;
+  types_hash_max_size 2048;
+  server_tokens off;
+
+  # all upstreams
+  # this is the dynamic reference that always needs to be there
+  include /app/nginx/upstreams.conf;
+
+  server {
+
+    server_name app.example.io;
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate /app/nginx/fullchain.pem;
+    ssl_certificate_key /app/nginx/privkey.pem;
+
+    # we enable only more recent protocols
+    ssl_protocols TLSv1.1 TLSv1.2;
+
+    # as suggested by Nginx we prioritize newer ciphers
+    ssl_ciphers  HIGH:!aNULL:!MD5;
+
+    # we cache the ssl session parameters
+    # to reduce the CPU load on the web server
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # we increase the keep alive timeout
+    # to improve socket reuse and reduce
+    # the need for SSL handshakes
+    keepalive_timeout 70;
+
+    location / {
+      proxy_pass http://example-ui-prod;
+    }
+
+    location /v1/api {
+      proxy_pass http://example-api-prod;
+    }
+
+  }
+  
+}
+```
+
+This example requires a bundle with the following files
+
+| File | Description |
+| ---- | ----------- |
+| `nginx.conf` | the main nginx config file. The name be customized via `NGINX_CONFIG_FILE_NAME` env variable. |
+| `privkey.pem` | the certificate private key |
+| `fullchain.pem` | the certiticate public key chain |
+
+
+## Example Nginx config file with TCP load balancing - MQTT
+
+```
+user nobody;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+  worker_connections 768;
 }
 
 # Example with TCP stream connector
@@ -100,10 +180,6 @@ stream {
   # this needs to be repeated here as it's context sensitive - http and stream
   include /app/nginx/upstreams.conf;
 
-  log_format basic '$remote_addr [$time_local] '
-                 '$protocol $status $bytes_sent $bytes_received '
-                 '$session_time';
-
   server {
     listen                  1883 so_keepalive=on;
     proxy_pass              mqtt-server:1883;
@@ -112,6 +188,37 @@ stream {
 
 }
 ```
+
+## Example Nginx config file with reverse proxying of Pgsql deployed on the cluster itself :)
+
+```
+user nobody;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+  worker_connections 768;
+}
+
+# PGSQL Connector to the postgres-prod upstream
+stream {
+
+  # all upstreams
+  include /app/nginx/upstreams.conf;
+
+  server {
+    listen                  5432 so_keepalive=on;
+    proxy_pass              postgres-prod;
+
+    # allows access only internally
+    allow  172.17.0.0/16;
+    deny   all;
+  }
+
+}
+```
+
+You can connect to Pgsql on `172.17.0.1:5432` from each container in the cluster.
 
 ## AWS IAM resources
 
