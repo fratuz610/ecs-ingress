@@ -3,6 +3,8 @@
 A simple NGINX based solution that allows to reverse proxy to services deployed on ECS.
 It's designed to run as a deamon on the ECS cluster and provide reverse proxying to the ECS services in the cluster.
 
+Available on Docker Hub: [fratuz610/ecs-ingress](https://hub.docker.com/r/fratuz610/ecs-ingress)
+
 ## How does it work
 
 ECS Ingress is a small golang executable loosly modelled after [nginx-ingress from k8s](https://kubernetes.github.io/ingress-nginx/) but designed to be significantly simpler.
