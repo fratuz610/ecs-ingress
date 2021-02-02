@@ -65,7 +65,13 @@ func (n *NginxMonitor) Reload() {
 
 // TestConfig Tests the Nginx configuration
 func (n *NginxMonitor) TestConfig() (string, error) {
-	mainCmd := exec.Command("nginx", "-t")
-	byteOut, err := mainCmd.Output()
-	return string(byteOut), err
+
+	mainConfPath := filepath.Join(n.cfg.Nginx.ConfigFolder, n.cfg.Nginx.MainConfigFile)
+
+	mainCmd := exec.Command("nginx", "-c", mainConfPath, "-t")
+	outputBytes, err := mainCmd.CombinedOutput()
+
+	output := string(outputBytes)
+
+	return output, err
 }
