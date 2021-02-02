@@ -17,10 +17,11 @@ ECS Ingress is a small golang executable loosly modelled after [nginx-ingress fr
 ## Notes
 
 * A valid NGINX configuration is required for the container to start properly. Subsequent configuration changes are accepted only if the new configuration passes the nginx config test.
+* AWS API calls are authenticated using the common 
 * Only `RUNNING` tasks are dynamically injected inside the upstreams file.
 * If a ECS service has no tasks running - because of failover or errors - a placeholder backend endpoint marked as DOWN is set to prevent missing reference errors in the main configuration file.
 * ECS Ingress combines the NGINX logs and its internal ones in 1 stdout/stderr stream.
-* ECS and Nginx config changes are polled every 10 seconds. Currently API requests against AWS resources are unmetered and free. S3 file updates are billed at the [current S3 GET request pricing](https://aws.amazon.com/s3/pricing/).
+* ECS and Nginx config changes are polled **every 10 seconds**. Currently API requests against AWS resources are unmetered and **free**. S3 file requests are billed at the [current S3 GET request pricing](https://aws.amazon.com/s3/pricing/).
 
 ## Deployment
 * ECS Ingress is designed to be deployed as a DAEMON in a ECS cluster with [HOST](https://docs.docker.com/network/host/) networking configuration binding on the ports opened by NGINX. The NGINX listening port numbers need to be referenced in the [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html) for the DEAMON service. 
@@ -35,7 +36,8 @@ ECS Ingress is a small golang executable loosly modelled after [nginx-ingress fr
 | `NGINX_CONFIG_FILE_NAME` | `nginx.conf` | the nginx config file to reference in the S3 bundle |
 | `NGINX_CONFIG_BUNDLE_S3_BUCKET` |  | the S3 bucket for the config bundle |
 | `NGINX_CONFIG_BUNDLE_S3_KEY` |  | the S3 key for the config bundle |
-
+| `AWS_ACCESS_KEY_ID`| | the AWS Access Key to access the AWS Services. Leave blank if using ECS Roles. |
+| `AWS_SECRET_ACCESS_KEY` | | the AWS Secret Access Key to access the AWS Services. Leave blank if using ECS Roles. |
 
 ## Example Nginx config bundle
 
@@ -111,11 +113,52 @@ stream {
 }
 ```
 
+## AWS IAM resources
 
+ECS Ingress works best when a ECS role is associated with the container via ECS Task definition like in the following example:
 
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ecs:ListServices",
+                "ecs:ListTasks",
+                "ecs:DescribeTasks",
+                "ecs:DescribeContainerInstances"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ListObjectsInBucket",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::example-bucket-name"
+            ]
+        },
+        {
+            "Sid": "AllObjectActions",
+            "Effect": "Allow",
+            "Action": "s3:*Object",
+            "Resource": [
+                "arn:aws:s3:::example-bucket-name/*"
+            ]
+        }
+    ]
+}
+```
+
+Alternatively a IAM User with equal access can be used and referenced via the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env variables.
 
 ## Roadmap
 * Automatic support for Route53 updates to reflect changes in the instances attached to a ECS cluster
+* [Slack Hooks](https://api.slack.com/messaging/webhooks) support for automatic update notifications
 * [Letsencrypt](https://letsencrypt.org/) support to automatically generate new HTTPS certificates
 * [Gossip protocol](https://github.com/hashicorp/memberlist) coordination across running containers in a cluster to coordinate Letsencrypt requests
 * Move to [openresty](https://openresty.org/en/) to avoid potentially costly config reloads from NGINX
